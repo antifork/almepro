@@ -202,7 +202,11 @@ reswitch:	switch (ch = *fmt++) {
 	va_end(ap);
 }
 
+#ifdef NBBY
+#undef NBBY  
+#endif
 #define NBBY	8		/* number of bits in a byte */
+
 static void
 kprintn(put, ul, base)
 	int (*put) (int);

@@ -34,6 +34,10 @@ case "$target_os" in
 	bsd_signal=yes
 	AC_SUBST(TARGET_OS, [openbsd])
 	;;
+#*netbsd*)
+#	bsd_signal=yes
+#	AC_SUBST(TARGET_OS, [netbsd])
+#	;;
 *)
 	AC_MSG_ERROR([${target_os}: unsupported system])
 	;;

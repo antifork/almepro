@@ -1371,6 +1371,11 @@ case "$target_os" in
 	TARGET_OS=openbsd
 
 	;;
+#*netbsd*)
+#	bsd_signal=yes
+#	TARGET_OS=netbsd
+#
+#	;;
 *)
 	{ { echo "$as_me:$LINENO: error: ${target_os}: unsupported system" >&5
 echo "$as_me: error: ${target_os}: unsupported system" >&2;}

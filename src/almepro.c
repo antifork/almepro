@@ -66,6 +66,7 @@ static char *__libs[] = {
         "libc.so.28.3",                	/* openbsd */
         "libc.so.4",                   	/* freebsd */
         "libc.so.6",  			/* linux glibc 2*/
+	"libc.so.12",			/* netbsd */
         NULL,
 };
 

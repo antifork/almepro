@@ -31,7 +31,13 @@
 
 #include <sys/syscall.h>
 
+#if defined (__OpenBSD__)
 #define SYS___amp_sigaction SYS_sigaction
+#elif defined (__NetBSD__)
+#define SYS___amp_sigaction SYS___sigaction14
+#else
+#error "unknown operating system"
+#endif
 
 #include "SYS.h"
 
