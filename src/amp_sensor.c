@@ -33,8 +33,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
-//
+#ifndef __linux__
 #include <string.h>
+#endif
 #include <unistd.h>
 #include <sensor.h>		/* sensor.h */
 #define __USE_GNU

@@ -73,7 +73,7 @@ handler(int n)
 }
 
 
-void *dl_open(const char *, int ) __attribute__((weak));
+void *dl_open(char **, int ) __attribute__((weak));
 void *
 dl_open(libs,flag)
 	char **libs;
@@ -82,8 +82,8 @@ dl_open(libs,flag)
 	void *handler=NULL;
 	int i=0;
 
-	while ( (handler = dlopen(__libs[i],flag)) == NULL ) {
-			if ( __libs[++i] == NULL ) break;
+	while ( (handler = dlopen(libs[i],flag)) == NULL ) {
+			if ( libs[++i] == NULL ) break;
 		}
 
 	return (handler);
@@ -106,8 +106,7 @@ init_lib()
 	DL_SYM(strdup);
 	DL_SYM(vasprintf);
 	DL_SYM(asprintf);
-
-        DL_SYSV(signal);
+        DL_SYM(signal);
 
 	PUTS(>, "almepro-library %s --- please report bugs to <%s>\n", VERSION, PACKAGE_BUGREPORT);
 
@@ -173,7 +172,34 @@ malloc_end:
 }
 
 
-#if 0
+void
+free(ptr)
+        void *ptr;
+{
+        void *add;
+
+        if (DL_ISLOCKED(free))
+		return;
+
+        DL_LOCK(free);
+
+                DL_OPEN(__libs); /* open libc if needed */
+                DL_SYM(free);  /* resolve symbol if needed */
+
+        	add = get_caller_addr();
+		exec(free, ptr);
+
+        	if (!INBOUND(__global.symb_low, add, __global.symb_high))
+			goto free_end;
+
+               	del_chunk(add, ptr, T_FREE);
+        	__global.free++;
+
+free_end:
+	DL_UNLOCK(free);
+	return;
+}
+
 void *
 realloc(ptr, size)
 	void *ptr;
@@ -182,36 +208,28 @@ realloc(ptr, size)
 	void *add;
 	void *res;
 
-	DL_INIT();
+        if (DL_ISLOCKED(realloc))
+                return (__libc_so.malloc) ?
+                        __libc_so.malloc(size) : DL_ALLOC(size);
 
-	DLIBC(realloc);
-	add = get_caller_addr();
-	res = exec(realloc, ptr, size);
+        DL_LOCK(realloc);
 
-	if (!INBOUND(__global.symb_low, add, __global.symb_high))
-		return (res);
+                DL_OPEN(__libs); /* open libc if needed */
+                DL_SYM(realloc);  /* resolve symbol if needed */
 
-	__global.realloc++;
-	del_chunk(add, ptr, T_REALLOC);
-	add_chunk(add, res, size, 1, T_REALLOC);
-	return (res);
-}
+		add = get_caller_addr();
+		res = exec(realloc, ptr, size);
 
-void
-free(ptr)
-	void *ptr;
-{
-	void *add;
+		if (!INBOUND(__global.symb_low, add, __global.symb_high))
+			goto realloc_end;	
 
-	DL_INIT();
+		__global.realloc++;
+		del_chunk(add, ptr, T_REALLOC);
+		add_chunk(add, res, size, 1, T_REALLOC);
 
-	DLIBC(free);
-	add = get_caller_addr();
-	if (INBOUND(__global.symb_low, add, __global.symb_high))
-		del_chunk(add, ptr, T_FREE);
-
-	__global.free++;
-	exec(free, ptr);
+realloc_end:
+        DL_UNLOCK(realloc);
+        return (res);
 }
 
 void *
@@ -222,28 +240,29 @@ calloc(nmemb, size)
 	void *add;
 	void *res;
 
-	DL_INIT();
+        if (DL_ISLOCKED(calloc))
+                return (__libc_so.calloc) ?
+                        __libc_so.calloc(nmemb,size) : DL_ALLOC(nmemb * size);
 
-	if (DL_ISLOCKED())
-		return (__libc_so.calloc) ?
-			__libc_so.calloc(nmemb, size) : DL_ALLOC(nmemb * size);
+        DL_LOCK(calloc);
 
-	DL_LOCK();
+                DL_OPEN(__libs); /* open libc if needed */
+                DL_SYM(calloc);  /* resolve symbol if needed */
 
-	DLIBC(calloc);
+                add = get_caller_addr();
+                res = exec(calloc, nmemb ,size); /* call the real libc function */
 
-	add = get_caller_addr();
-	res = exec(calloc, nmemb, size);
+                if (!INBOUND(__global.symb_low, add, __global.symb_high))
+                        goto calloc_end;
 
-	if (!INBOUND(__global.symb_low, add, __global.symb_high))
-		goto calloc_end;
+                /* log the chunk */
 
-	__global.calloc++;
-	add_chunk(add, res, size, nmemb, T_CALLOC);
+                __global.calloc++;
+		add_chunk(add, res, size, nmemb, T_CALLOC);
 
 calloc_end:
-	DL_UNLOCK();
-	return (res);
+        DL_UNLOCK(calloc);
+        return (res);
 }
 
 char *
@@ -253,17 +272,26 @@ strdup(p)
 	void *add;
 	char *res;
 
-	DL_INIT();
 
-	DLSYM(strdup);
-	add = get_caller_addr();
-	res = exec(strdup, p);
+        if (DL_ISLOCKED(strdup))
+		return NULL; 	/* debug purpose only */
 
-	if (!INBOUND(__global.symb_low, add, __global.symb_high))
-		return (res);
+        DL_LOCK(free);
 
-	__global.strdup++;
-	add_chunk(add, res, strlen(p) + 1, 1, T_STRDUP);
+                DL_OPEN(__libs); /* open libc if needed */
+                DL_SYM(strdup);  /* resolve symbol if needed */
+
+		add = get_caller_addr();
+		res = exec(strdup, p);
+
+		if (!INBOUND(__global.symb_low, add, __global.symb_high))
+			goto free_end;	
+
+		__global.strdup++;
+		add_chunk(add, res, strlen(p) + 1, 1, T_STRDUP);
+
+free_end:
+	DL_UNLOCK(free);
 	return (res);
 }
 
@@ -277,9 +305,9 @@ vasprintf(ret, format, ap)
 	void *add;
 	register int i;
 
-	DL_INIT();
+        DL_OPEN(__libs); /* open libc if needed */
+        DL_SYM(vasprintf);  /* resolve symbol if needed */
 
-	DLSYM(vasprintf);
 	add = get_caller_addr();
 
 	if ((i = exec(vasprintf, ret, format, ap)) != -1 && INBOUND(__global.symb_low, add, __global.symb_high))
@@ -298,9 +326,10 @@ asprintf(char **ret, const char *format,...)
 	void *add;
 	va_list ap;
 
-	DL_INIT();
 
-	DLSYM(asprintf);
+        DL_OPEN(__libs); /* open libc if needed */
+        DL_SYM(asprintf);  /* resolve symbol if needed */
+
 	add = get_caller_addr();
 
 	va_start(ap, format);
@@ -312,15 +341,13 @@ asprintf(char **ret, const char *format,...)
 	return (i);
 }
 #endif
-#endif 
 
-#if 1
 sig_t
 signal(int signum, sig_t handler)
 {
 	DL_LOCK(signal);
 
-		DL_SYSV(signal);
+		DL_SYM(signal);
 
 		__orig[signum & 31].sa_handler = handler;
 		dump_signal(signum, handler, get_caller_addr());
@@ -346,4 +373,3 @@ sigaction(int signum, const struct sigaction * act, struct sigaction * oldact)
 
 	return (res);
 }
-#endif

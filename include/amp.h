@@ -82,7 +82,7 @@
  *  macros 
  */
 
-#define DL_ISLOCKEDx()       ( __sem.x > 1)
+#define DL_ISLOCKED(x)      ( __sem.x > 1)
 #define DL_LOCK(x)       do { __sem.x++; } while (0)
 #define DL_UNLOCK(x)     do { __sem.x--; } while (0)
 
@@ -104,39 +104,29 @@ ret;									\
  * DL_OPEN directive
  */
 			                                            
-#if !defined (HAVE___LIBC_MALLOC) && !defined (RTLD_NEXT)
+#if !defined (RTLD_NEXT)
 #define DL_OPEN(x)	do {						\
 	if (__handler == 0)						\
 		__handler = dl_open(x,_DLMODE);				\
 } while (0)
 #else
 /* dlopen is not required */
-#define DL_OPEN(x)
+#define DL_OPEN(x)	do { } while (0)
 #endif /* DL_OPEN */
 
 /*
  * DL_SYM and DL_SYSV directive
  */
 
-#if defined (HAVE___LIBC_MALLOC)
-/* #1 : dont need to resolve symbols */
-#define DL_SYM(x)	do {						\
-	__libc_so.x =(void *)&__libc_ ##x;                              \
-} while (0)
-#define DL_SYSV(x) 	do {                                           	\
-	__libc_so.x = (void *)&__sysv_ ##x;                            	\
-} while (0)
-
-#elif defined (RTLD_NEXT)
-/* #2 : using RTLD_NEXT handler if supported (without dlopen)*/ 
+#if defined (RTLD_NEXT)
+/* #1 : using RTLD_NEXT handler if supported (without dlopen)*/ 
 #define DL_SYM(x)	do {						\
 	if (__libc_so.x == 0) {                                         \
 	__libc_so.x = dlsym (RTLD_NEXT, _DLSYMPREFIX #x);   		\
 	}                                                               \
 } while (0)
-#define  DL_SYSV(x) DL_SYM(x)
 #else
-/* #3 : using the opened __handler */
+/* #2 : using the opened __handler */
 #define DL_SYM(x)	do {						\
     if (__libc_so.x == 0) {                                             \
         assert(__handler != NULL);                                     	\
@@ -144,11 +134,11 @@ ret;									\
     }                                                                   \
     assert(__libc_so.x != NULL);                                        \
 } while (0)
-#define  DL_SYSV(x) DL_SYM(x)
 #endif
 
 /* prototypes */
 
+#if 0
 #ifdef HAVE___LIBC_MALLOC
 extern void *(*__libc_calloc)(size_t, size_t);
 extern void *(*__libc_malloc)(size_t);
@@ -156,6 +146,7 @@ extern void (*__libc_free)(void *);
 extern void *(*__libc_realloc)(void *, size_t);
 extern int (*__libc_sigaction)(int, const struct sigaction *, struct sigaction *);
 #endif
+#endif /* 0 */
 
 #define INBOUND(a,x,b)	( (u_long)a <= (u_long)x && (u_long)x <= (u_long)b )
 
