@@ -59,6 +59,7 @@ EXTERN char *__unit[] INIT(= {"b", "K", "M", "G", "T"});
 
 EXTERN struct sigaction __orig[32];
 EXTERN struct sigaction __hdr;
+EXTERN struct sigaction __hdr_exit;
 
 EXTERN struct OPT __options INIT (= { 
     	main:		0,

@@ -201,7 +201,8 @@ void
 amp_handler(int sig, int code, struct sigcontext * scp)
 #endif
 {
-	int c;
+	int c, wstat;
+	sigset_t set, oset;
 
 	PUTS(>, "catched signal %s!\n", sig_table[sig]);
 
@@ -305,7 +306,28 @@ amp_handler(int sig, int code, struct sigcontext * scp)
 		break;
 	case ((int) SIG_DFL):
 		PUTS(>, "signal with default action.\n");
+
+		/* Restore the default action, rasing a nested signal */
+#ifdef RTLD_NEXT
+		exec(sigaction, sig, &__orig[sig], NULL);
+#else
+		__amp_sigaction(sig, &__orig[sig], NULL);
+#endif
+		sigemptyset(&set);
+		sigaddset(&set, sig);
+		sigprocmask(SIG_UNBLOCK, &set, &oset);
+		raise(sig);
+
+		wait(&wstat);	/* wait the __orig hander's exit */
+
+#ifdef RTLD_NEXT
+		exec(sigaction, sig, &__hdr, NULL);
+#else
+		__amp_sigaction(sig, &__hdr, NULL);
+#endif
+		sigprocmask(SIG_SETMASK, &oset, NULL);
 		break;
+
 	default:
 		PUTS(>, "signal handler at 0x%x\n", (int) __orig[sig].sa_handler);
 		__orig[sig].sa_handler(sig);
@@ -339,6 +361,20 @@ dump_signal(signum, handler, c_addr)
 }
 
 
+#ifdef HAVE_SIGINFO
+void amp_ctrl_c(int, siginfo_t *, void *) __attribute__((weak));
+void
+amp_ctrl_c(int sig, siginfo_t * sip, void *scp)
+#else
+void amp_ctrl_c(int, int, struct sigcontext *) __attribute__((weak));
+void
+amp_ctrl_c(int sig, int code, struct sigcontext * scp)
+#endif
+{
+	PUTS(>, "catched CTRL+C (signal %s)!\n", sig_table[sig]);
+	exit(1);
+}
+
 int amp_sensor(int);
 int
 amp_sensor(int opt)
@@ -348,18 +384,32 @@ amp_sensor(int opt)
 #ifdef HAVE_SIGINFO
 	__hdr.sa_flags = SA_SIGINFO;
 	__hdr.sa_sigaction = amp_handler;
+	__hdr_exit.sa_flags = SA_SIGINFO;
+	__hdr_exit.sa_sigaction = amp_ctrl_c;
 #else
 	__hdr.sa_handler = (void (*) (int)) amp_handler;
+	__hdr_exit.sa_handler = amp_ctrl_c;
+
 #endif
 #ifdef  SA_RESTART
 	__hdr.sa_flags |= SA_RESTART;	/* SVR4, 44BSD */
 #endif
 	for (i = 0; i < 32; i++)
+		switch (i) {
+		case SIGINT: // happy ctrl_c >>> benkj
 #ifdef RTLD_NEXT
-		exec(sigaction, i, &__hdr, &__orig[i]);
+				exec(sigaction, SIGINT, &__hdr_exit, NULL);
 #else
-		__amp_sigaction(i, &__hdr, &__orig[i]);
+				__amp_sigaction(SIGINT, &__hdr_exit, NULL);
 #endif
+			break;
 
+		default: // masking signals with __hdr sigaction
+#ifdef RTLD_NEXT
+				exec(sigaction, i, &__hdr, &__orig[i]);
+#else
+				__amp_sigaction(i, &__hdr, &__orig[i]);
+#endif
+		}
 	return;
 }
