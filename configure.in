@@ -1,7 +1,7 @@
 dnl
 dnl  almepro -- allocation memory profiler library
 dnl 
-dnl  Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+dnl  Copyright (c) 2002 Bonelli Nicola <bonelli@antifork.org>
 dnl			Banchi Leonardo <benkj@antifork.org>
 dnl 
 dnl  All rights reserved.
@@ -9,7 +9,7 @@ dnl
 
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([almepro],[1.x],[bonelli@blackhats.it])
+AC_INIT([almepro],[1.x],[bonelli@antifork.org])
 AC_CONFIG_SRCDIR([include/amp.h])
 AC_CONFIG_HEADER([include/config.h])
 

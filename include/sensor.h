@@ -1,7 +1,7 @@
 /*
  * sensor.h
  *
- * Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+ * Copyright (c) 2002 Bonelli Nicola <bonelli@antifork.org>
  *                    Banchi Leonardo <benkj@antifork.org>
  *
  * All rights reserved.
