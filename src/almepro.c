@@ -45,7 +45,6 @@
 #define __USE_BSD
 #endif
 #include <signal.h>
-#include <assert.h>
 #include <config.h>
 #include <sensor.h>
 #include <amp.h>

@@ -36,6 +36,7 @@
 #include <signal.h>
 #include <config.h>
 #include <limits.h>
+#include <assert.h>
 
 /*
  *  BSD queue issue.
@@ -85,7 +86,7 @@
  *  Macro 
  */
 
-#define DL_ISLOCKED(x)      ( __sem.x > 1)
+#define DL_ISLOCKED(x)      ( __sem.x > 0)
 #define DL_LOCK(x)       do { __sem.x++; } while (0)
 #define DL_UNLOCK(x)     do { __sem.x--; } while (0)
 
