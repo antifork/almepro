@@ -3,6 +3,7 @@
  * almepro -- allocation memory profiler library
  *
  * Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+ * 		      Banchi Leonardo <benkj@antifork.org>
  *
  * All rights reserved.
  *
@@ -45,6 +46,7 @@
 #define __USE_BSD
 #endif
 #include <signal.h>
+#include <sys/ioctl.h>
 #include <config.h>
 #include <sensor.h>
 #include <amp.h>
@@ -57,6 +59,8 @@ static void *__handler;
 static struct SEM __sem;
 static char dl_buf[_DLBUF_SIZE];
 static size_t dl_offs;
+static u_long saved_symb_high;
+static u_long saved_symb_low;
 
 static char *__libs[] = {
         "libc.so.28.3",                	/* openbsd */
@@ -68,9 +72,10 @@ static char *__libs[] = {
 RETSIGTYPE
 handler(int n)
 {
+	TRACE_DISABLE();
 	dump_chunks();
+	TRACE_RESTORE();
 }
-
 
 void *dl_open(char **, int ) __attribute__((weak));
 void *
@@ -88,6 +93,84 @@ dl_open(libs,flag)
 	return (handler);
 }
 
+static void
+parse_options()
+{
+	char *op;
+
+	/* options set by runamp script */
+	assert(op = getenv("__AMP_OPTIONS"));
+
+	for ( ; *op != '\0'; op++)
+		switch (*op) {
+		case 'N' :
+			__options.src_path = OSRC_NONE;
+			break;
+		case 'F' :
+			__options.src_path = OSRC_FULL;
+			break;
+		case 'B' :
+			__options.src_path = OSRC_BASE;
+			break;
+		case 'R' :
+			__options.src_path = OSRC_REL;
+			break;
+		case 'S' :
+			__options.no_symbol = 0;
+			break;
+		case 's' :
+			__options.no_symbol = 1;
+			break;
+		case 'A' :
+			__options.trace_all = 0;
+			break;
+		case 'a' :
+			__options.trace_all = 1;
+			break;
+		case 'o' :
+			__options.outfile = getenv("__AMP_OUTFILE");
+			break;
+		default: 
+		}
+}
+
+static void 
+library_init()
+{
+	struct utsname name;
+
+	DL_OPEN(__libs); /* open libc if required */
+
+	/* load symbol needed in the following init functions */
+	DL_SYM(malloc);
+	DL_SYM(sigaction);
+	DL_SYM(strdup);
+	DL_SYM(vasprintf);
+	DL_SYM(asprintf);
+        DL_SYM(signal);
+
+	parse_options();
+
+	/* set output file */
+	if (!INIT_STDOUT()) 
+		PUTS(*, "can't open output file for writing... using stderr\n");
+	
+	/* get terminal columns */
+	INIT_WINSZ();
+
+	PUTS(>, "almepro-library %s --- please report bugs to <%s>\n", VERSION, PACKAGE_BUGREPORT);
+
+	uname(&name);
+	PUTS(>, "uname(sysname=\"%s\",nodename=\"%s\",release=\"%s\",version=\"%s\",machine=\"%s\")\n",
+	     name.sysname, name.nodename, name.release, name.version, name.machine);
+
+	if (amp_symbols_init() == -1)
+		PUTS(*, "bfd: symbols resolution suppressed\n");
+
+	PUTS(>, "bfd: low_symbol@ %p, high_symbol@ %p\n", __global.symb_low, __global.symb_high);
+
+}
+
 /**********************************************
  *      library constructor/destructor
  **********************************************/
@@ -96,41 +179,27 @@ static void init_lib(void) __attribute__((constructor));
 static void
 init_lib()
 {
-	struct utsname name;
+#ifdef RTLD_NEXT
+	library_init();
 
-	DL_OPEN(__libs); /* open libc if required */
-
-	DL_SYM(malloc);
-	DL_SYM(sigaction);
-	DL_SYM(strdup);
-	DL_SYM(vasprintf);
-	DL_SYM(asprintf);
-        DL_SYM(signal);
-
-	PUTS(>, "almepro-library %s --- please report bugs to <%s>\n", VERSION, PACKAGE_BUGREPORT);
-
-	uname(&name);
-	PUTS(>, "uname(sysname=\"%s\",nodename=\"%s\",release=\"%s\",version=\"%s\",machine=\"%s\")\n",
-	     name.sysname, name.nodename, name.release, name.version, name.machine);
-
+	/* init signal */
 	exec(signal, SIGQUIT, handler);
+#else
+	__amp_signal(SIGQUIT, handler);
+#endif
+
 	amp_sensor();
-
-	if (amp_symbols_init() == -1)
-		PUTS(*, "bfd: symbols resolution suppressed\n");
-
-	PUTS(>, "bfd: low_symbol@ %p, high_symbol@ %p\n", __global.symb_low, __global.symb_high);
-
-	/* DL_UNLOCK(); */
-
 }
 
 static void exit_lib(void) __attribute__((destructor));
 static void
 exit_lib()
 {
+	TRACE_DISABLE();
+	
 	dump_chunks();
 	PUTS(-, "exit (bye)\n");
+	FLUSH_OUTPUT();
 }
 
 
@@ -146,8 +215,8 @@ malloc(size)
 	void *res;
 
 	if (DL_ISLOCKED(malloc))
-		return (__libc_so.malloc) ?
-			__libc_so.malloc(size) : DL_ALLOC(size);
+		return exist(malloc) ?
+			exec(malloc, size) : DL_ALLOC(size);
 
 	DL_LOCK(malloc);
 
@@ -157,7 +226,7 @@ malloc(size)
 		add = get_caller_addr();
 		res = exec(malloc, size); /* call the real libc function */
 
-		if (!INBOUND(__global.symb_low, add, __global.symb_high))
+		if (!TRACE_ALLOWED(add))
 			goto malloc_end;
 
 		/* log the chunk */
@@ -188,7 +257,7 @@ free(ptr)
         	add = get_caller_addr();
 		exec(free, ptr);
 
-        	if (!INBOUND(__global.symb_low, add, __global.symb_high))
+        	if (!TRACE_ALLOWED(add))
 			goto free_end;
 
                	del_chunk(add, ptr, T_FREE);
@@ -208,8 +277,8 @@ realloc(ptr, size)
 	void *res;
 
         if (DL_ISLOCKED(realloc))
-                return (__libc_so.malloc) ?
-                        __libc_so.malloc(size) : DL_ALLOC(size);
+                return exist(malloc) ?
+                        exec(malloc, size) : DL_ALLOC(size);
 
         DL_LOCK(realloc);
 
@@ -219,7 +288,7 @@ realloc(ptr, size)
 		add = get_caller_addr();
 		res = exec(realloc, ptr, size);
 
-		if (!INBOUND(__global.symb_low, add, __global.symb_high))
+		if (!TRACE_ALLOWED(add))
 			goto realloc_end;	
 
 		__global.realloc++;
@@ -240,8 +309,8 @@ calloc(nmemb, size)
 	void *res;
 
         if (DL_ISLOCKED(calloc))
-                return (__libc_so.calloc) ?
-                        __libc_so.calloc(nmemb,size) : DL_ALLOC(nmemb * size);
+                return exist(calloc) ?
+                        exec(calloc, nmemb, size) : DL_ALLOC(nmemb * size);
 
         DL_LOCK(calloc);
 
@@ -251,7 +320,7 @@ calloc(nmemb, size)
                 add = get_caller_addr();
                 res = exec(calloc, nmemb ,size); /* call the real libc function */
 
-                if (!INBOUND(__global.symb_low, add, __global.symb_high))
+                if (!TRACE_ALLOWED(add))
                         goto calloc_end;
 
                 /* log the chunk */
@@ -283,7 +352,7 @@ strdup(p)
 		add = get_caller_addr();
 		res = exec(strdup, p);
 
-		if (!INBOUND(__global.symb_low, add, __global.symb_high))
+		if (!TRACE_ALLOWED(add))
 			goto free_end;	
 
 		__global.strdup++;
@@ -309,7 +378,7 @@ vasprintf(ret, format, ap)
 
 	add = get_caller_addr();
 
-	if ((i = exec(vasprintf, ret, format, ap)) != -1 && INBOUND(__global.symb_low, add, __global.symb_high))
+	if ((i = exec(vasprintf, ret, format, ap)) != -1 && TRACE_ALLOWED(add))
 		add_chunk(add, *ret, i + 1, 1, T_VASPRINTF);
 
 	__global.vasprintf++;
@@ -332,7 +401,7 @@ asprintf(char **ret, const char *format,...)
 	add = get_caller_addr();
 
 	va_start(ap, format);
-	if ((i = exec(vasprintf, ret, format, ap)) != -1 && INBOUND(__global.symb_low, add, __global.symb_high))
+	if ((i = exec(vasprintf, ret, format, ap)) != -1 && TRACE_ALLOWED(add))
 		add_chunk(add, *ret, i + 1, 1, T_ASPRINTF);
 	va_end(ap);
 
@@ -346,6 +415,7 @@ signal(int signum, sig_t handler)
 {
 	DL_LOCK(signal);
 
+                DL_OPEN(__libs); /* open libc if needed */
 		DL_SYM(signal);
 
 		__orig[signum & 31].sa_handler = handler;
@@ -364,6 +434,7 @@ sigaction(int signum, const struct sigaction * act, struct sigaction * oldact)
 
 	DL_LOCK(sigaction);
 
+                DL_OPEN(__libs); /* open libc if needed */
 		DL_SYM(sigaction);
 		__global.sigaction++;
 		res = exec(sigaction, signum, act, oldact);

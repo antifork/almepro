@@ -2,6 +2,7 @@
  * almepro -- globals  
  *
  * Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+ * 		      Banchi Leonardo <benkj@antifork.org>
  *
  * All rights reserved.
  *
@@ -59,10 +60,22 @@ EXTERN char *__unit[] INIT(= {"b", "K", "M", "G", "T"});
 EXTERN struct sigaction __orig[32];
 EXTERN struct sigaction __hdr;
 
-EXTERN struct OPT __options;                        
-EXTERN struct STDLIB __libc_so;
+EXTERN struct OPT __options INIT (= { 
+    	main:		0,
+    	symbol:		0,
+    	stripped:	0,
+    	noname:		0,
+    	header:		0,
+	trace_all:	0,
+    	no_symbol:	0,
+	src_path:	OSRC_NONE,
+	outfile:	"/dev/stderr"                        
+});
+EXTERN struct STDLIB __libc_so __attribute__ ((nocommon)); /* zero */
 EXTERN struct GLOBAL __global INIT (= { 
 	mem:		0,
+	ws_col:		80,
+	fd:		NULL,
 	symb_low:	ULONG_MAX,
 	symb_high:	0,
 	malloc:		0,

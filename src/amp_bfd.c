@@ -3,6 +3,7 @@
  * almepro -- Binary File Descriptor Library
  *
  * Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+ * 		      Banchi Leonardo <benkj@antifork.org>
  *
  * All rights reserved.
  *
@@ -32,30 +33,29 @@
 #include <bfd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <amp.h>
 #include <global.h>
+
+static asymbol **symbol_table;
+static bfd *abfd;
 
 int amp_symbols_init() __attribute__((weak));
 int
 amp_symbols_init()
 {
 	extern char *__progname;
-	char progname[80];
+	char *progname;
 	long storage;
-	asymbol **symbol_table;
 	long n_symbols;
 	long f_symbols;
 	long symbol_value;
-	bfd *abfd;
 	long i;
 
 	bfd_init();		/* initialize magical internal data
 				 * structures */
-	progname[0] = '.';
-	progname[1] = '/';
-	progname[2] = '\0';
-
-	strlcat(progname, __progname, 80);
+	
+	assert(progname = getenv("__AMP_TARGET"));
 
 	/*
 	 * open objectect
@@ -103,6 +103,8 @@ amp_symbols_init()
 	if (n_symbols == 0) {
 		PUTS(>, "bfd: %s: executable, stripped\n", __progname, n_symbols);
 		__options.stripped = 1;
+		__global.symb_low = 0;
+		__global.symb_high = ULONG_MAX;
 		return (0);
 	}
 	PUTS(>, "bfd: %d symbols loaded\n", n_symbols);
@@ -138,6 +140,117 @@ amp_symbols_init()
 
 	PUTS(>, "bfd: %d symbols discarded\n", f_symbols);
 
+	if (__options.trace_all) {
+		__global.symb_low = 0;
+		__global.symb_high = ULONG_MAX;
+	}
+	
 	//dump_symbols();
 	return (n_symbols);
+}
+
+static char buff[128];
+
+static char *get_file_name(char *);
+static char *
+get_file_name(s)
+    register char *s;
+{
+	register char *ret, *pwd;
+	char wd[128];
+
+	/* s contains full-path source name */
+	
+	if (s == NULL || *s == '\0')
+		return "??";
+	
+	switch (__options.src_path) {
+	case OSRC_FULL :
+		return s;
+	case OSRC_BASE :
+		ret = s;
+		while (*s != '\0')
+	  		if (*s++ == '/')
+				ret = s;
+		return ret;   
+	case OSRC_REL :
+		if (getcwd(wd, 128) == NULL)
+			return s;
+		ret = s;
+		pwd = wd;
+		buff[0] = '\0';
+
+		while (*pwd == *s) {
+			if (*s == '\0')
+				return ret;
+			pwd++;
+			s++;
+		}
+
+		if (*s == '/')
+			s++;
+		else
+			strlcat(buff, "../", 128);
+
+		while (*pwd != '\0')
+			if (*pwd++ == '/')
+				strlcat(buff, "../", 128);
+
+		if (buff[0] == '\0')
+			strlcat(buff, "./", 128);
+
+		strlcat(buff, s, 128);
+		return buff;
+	default :
+	}
+	
+	return "";
+}
+
+char *amp_get_line(u_long) __attribute__((weak));
+char *
+amp_get_line(addr)
+    u_long addr;
+{
+	bfd_vma vma, faddr;
+	asection *sec;
+	bfd_size_type size;
+	const char *file, *func, *f;
+	unsigned int line;
+	char *ret;
+
+	if (symbol_table == NULL || abfd == NULL || __options.src_path == OSRC_NONE)
+		return "";
+
+	faddr = (bfd_vma)addr;
+	
+	for (sec = abfd->sections; sec != NULL; sec = sec->next)
+	{
+		/* look for an address in a section */
+		if ((bfd_get_section_flags(abfd, sec) & SEC_ALLOC) == 0)
+			continue;
+	
+		vma = bfd_get_section_vma(abfd, sec);
+		size = bfd_get_section_size_before_reloc(sec);
+
+		if (faddr < vma || (size_t)(faddr - vma) >= size)
+			continue;
+
+		faddr -= vma;
+
+		/* translate address into file_name:line_number */
+		if (bfd_find_nearest_line(abfd, sec, symbol_table, faddr,
+			    &file, &func, &line) && line > 0)
+		{
+			f = get_file_name((char *)file);
+
+			assert(ret = (char *)exec(malloc, strlen(f) + 16));
+
+			ksprintf(ret, "%s:%u ", f, line);
+			
+			return ret;
+		}
+	}
+
+	return "";
 }

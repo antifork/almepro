@@ -3,6 +3,7 @@
  * almepro -- symbols database
  *
  * Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+ * 		      Banchi Leonardo <benkj@antifork.org>
  *
  * All rights reserved.
  *
@@ -37,19 +38,21 @@
 #include <amp.h>
 #include <global.h>
 
-TAILQ_HEAD(, symb_entry) symb_head;
+/* FIXME: indent bug? */
+TAILQ_HEAD(symp_head_, symb_entry);
+struct symp_head_ symb_head;
 
-	struct symb_entry {
-		char *name;	/* symbolic name */
-		u_long value;	/* absolute address */
-		u_long flags;	/* BFD symbols' flags */
-		       TAILQ_ENTRY(symb_entry) entries;
-	};
+struct symb_entry {
+	char *name;		/* symbolic name */
+	u_long value;		/* absolute address */
+	u_long flags;		/* BFD symbols' flags */
+	       TAILQ_ENTRY(symb_entry) entries;
+};
 
 
-	void add_symbol(char *, u_long, u_long) __attribute__((weak));
-	void
-	     add_symbol(nm, vl, fl)
+void add_symbol(char *, u_long, u_long) __attribute__((weak));
+void
+add_symbol(nm, vl, fl)
 	char *nm;
 	u_long vl;
 	u_long fl;
@@ -59,7 +62,10 @@ TAILQ_HEAD(, symb_entry) symb_head;
 	/* create a new symb_entry */
 
 	new = exec(malloc, sizeof(struct symb_entry));
-	new->name = strdup(nm);
+#ifdef linux
+#undef strdup
+#endif
+	new->name = exec(strdup, nm);
 	new->value = vl;
 	new->flags = fl;
 
@@ -68,7 +74,7 @@ TAILQ_HEAD(, symb_entry) symb_head;
          * we traverse the queue, until the new value is greater than the queue's element.
 	 */
 
-	for (np = symb_head.tqh_first; np != NULL && np->value < vl; np = np->entries.tqe_next)
+	for (np = TAILQ_FIRST(&symb_head); np != NULL && np->value < vl; np = TAILQ_NEXT(np, entries))
 		continue;
 
 	if (np == NULL) {
@@ -98,28 +104,34 @@ get_symb_descr(addr)
 	char offset[12];
 	struct symb_entry *np;
 
+	if (__options.no_symbol)
+		return ("");
+	
 	if (__options.stripped)
-		return ("stripped");
+		return ("  stripped");
 
 	/*
 	 *  searching for the nearest entrypoint
 	 */
 
-	for (np = symb_head.tqh_first;
-	     (np != NULL) && (np->entries.tqe_next != NULL) && (addr >= np->entries.tqe_next->value); np = np->entries.tqe_next)
+	for (np = TAILQ_FIRST(&symb_head);
+	     (np != NULL) && (TAILQ_NEXT(np, entries) != NULL) && (addr >= (TAILQ_NEXT(np, entries))->value); np = TAILQ_NEXT(np, entries))
 		continue;
 
-	if ((np == NULL) || (np->entries.tqe_next == NULL))
-		return ("__??");/* XXX: debug */
+	if ((np == NULL) || (TAILQ_NEXT(np, entries) == NULL))
+		return (" <__??>");/* XXX: debug */
 
 
-	strlcpy(buffer, np->name, sizeof(buffer));
+	strlcpy(buffer, " <", sizeof(buffer));
+	strlcat(buffer, np->name, sizeof(buffer));
 
 	if (addr - np->value > 0) {
 		ksprintf(offset, "%d", addr - np->value);
 		strlcat(buffer, "+", sizeof(buffer));
 		strlcat(buffer, offset, sizeof(buffer));
 	}
+	
+	strlcat(buffer, ">", sizeof(buffer));
 	return (buffer);
 }
 

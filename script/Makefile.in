@@ -1,0 +1,31 @@
+#
+#  almepro -- allocation memory profiler library
+#
+#  Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+#                     Banchi Leonardo <benkj@antifork.org>
+#
+#  All rights reserved.
+
+INSTALL = @INSTALL@
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+LN_S = @LN_S@
+
+bindir = @bindir@
+
+all: runamp
+
+runamp:
+	../configure
+
+clean:
+
+distclean: clean
+	-rm -f runamp
+
+install: runamp
+	$(INSTALL) -m 755 runamp $(bindir)
+	$(LN_S) -f $(bindir)/runamp $(bindir)/almepro
+
+uninstall:
+	-rm -f $(bindir)/runamp $(bindir)/almepro

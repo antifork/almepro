@@ -2,7 +2,8 @@
  * almepro -- allocation memory profiler library
  *
  * Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
- *
+ * 		      Banchi Leonardo <benkj@antifork.org>
+ * 		      
  * All rights reserved.
  *
  *
@@ -58,7 +59,38 @@
 #ifndef MAX
 #define MAX(a,b) ((a)>(b) ? (a):(b))
 #endif
-#define PUTS(x,f,args...)  kprintf(#x " " f,##args)
+
+/* output routines */
+#define PUTS_CHAR		3
+#define PUTS(x,f,args...)						\
+	kfprintf((__global.fd != NULL) ? __global.fd : stderr,		\
+	    #x #x " " f,##args)
+#define FLUSH_OUTPUT()	fflush((__global.fd != NULL) ? __global.fd : stderr)
+
+/* buffer routines */
+#define MEMSET(addr, ch, start, end) 					\
+do {									\
+	int _i;		 						\
+	for (_i = start; _i < end; _i++)				\
+		*(char *)((char *)addr + _i) = ch;			\
+} while (0)
+
+/* init routines */
+#if defined (TIOCGWINSZ)
+#define INIT_WINSZ() 							\
+do {	 								\
+	if (__global.fd == NULL || isatty(fileno(__global.fd))) {	\
+		struct winsize ws;					\
+		memset(&ws, 0, sizeof(ws));				\
+		if (ioctl(0, TIOCGWINSZ, &ws) != -1)			\
+			__global.ws_col = ws.ws_col;			\
+	}								\
+} while (0)
+#else
+#define INIT_WINSZ()
+#endif
+
+#define INIT_STDOUT()	(__options.outfile != NULL && (__global.fd = fopen(__options.outfile, "w")) != NULL)
 
 #define x86_CALL    5 /* bytes */
 
@@ -82,6 +114,11 @@
 #error "unsupported system"
 #endif
 
+#ifndef RTLD_NEXT
+int __amp_sigaction(int, const struct sigaction *, struct sigaction *); 
+sig_t __amp_signal(int, sig_t);
+#endif
+
 /*
  *  Macro 
  */
@@ -90,8 +127,10 @@
 #define DL_LOCK(x)       do { __sem.x++; } while (0)
 #define DL_UNLOCK(x)     do { __sem.x--; } while (0)
 
+#define exist(x)	(__libc_so.x != NULL)
+
 #define exec(x,...)  ({                                                 \
-	assert (__libc_so.x != NULL);					\
+	assert(exist(x));						\
         __libc_so.x(__VA_ARGS__);                                       \
 })
 
@@ -105,8 +144,10 @@ ret;									\
 
 #if !defined (RTLD_NEXT)
 #define DL_OPEN(x)	do {						\
-	if (__handler == 0)						\
+	if (__handler == 0) {						\
 		__handler = dl_open(x,_DLMODE);				\
+		library_init();						\
+	} 								\
 } while (0)
 #else
 /* dlopen is not required */
@@ -131,7 +172,25 @@ ret;									\
 } while (0)
 #endif
 
+#define INBOUND(a,x,b)	( (u_long)a <= (u_long)x && (u_long)x <= (u_long)b )
+
+#define TRACE_DISABLE()	do {						\
+	saved_symb_high = __global.symb_high;				\
+	saved_symb_low = __global.symb_low;				\
+	__global.symb_high = 0;						\
+	__global.symb_low = ULONG_MAX;					\
+} while (0)
+	
+#define TRACE_RESTORE()	do {						\
+	__global.symb_high = saved_symb_high;				\
+	__global.symb_low = saved_symb_low;				\
+} while (0)
+
+#define TRACE_ALLOWED(addr)	INBOUND(__global.symb_low, addr, __global.symb_high)
+
 /* prototypes */
+
+char *amp_get_line(u_long);
 
 #if 0
 #ifdef HAVE___LIBC_MALLOC
@@ -143,8 +202,6 @@ extern int (*__libc_sigaction)(int, const struct sigaction *, struct sigaction *
 #endif
 #endif /* 0 */
 
-#define INBOUND(a,x,b)	( (u_long)a <= (u_long)x && (u_long)x <= (u_long)b )
-
 /*
  * struct definition
  */
@@ -155,7 +212,17 @@ struct OPT {
         int stripped:1;
         int noname:1;
         int header:1;
+
+	int trace_all:1;
+	int no_symbol:1;
+	u_char src_path;
+	char *outfile;
 };
+
+#define OSRC_NONE	0	
+#define OSRC_FULL	1	
+#define OSRC_BASE	2
+#define OSRC_REL	3
 
 struct STDLIB {
         void *(*calloc)();      	/* alloc */
@@ -174,6 +241,9 @@ struct STDLIB {
 
 struct GLOBAL {
         long    mem;                    
+
+	int	ws_col;
+	FILE	*fd;
 
         u_long  symb_low;
         u_long  symb_high;

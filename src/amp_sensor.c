@@ -3,6 +3,7 @@
  * almepro -- sensor.h http://bonelli.oltrelinux.com/codes/sensor.h
  *
  * Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+ *                    Banchi Leonardo <benkj@antifork.org>
  *
  * All rights reserved.
  *
@@ -314,7 +315,7 @@ amp_handler(int sig, int code, struct sigcontext * scp)
 
 
 void dump_signal(int, void *, u_long) __attribute__((weak));
-void 
+void
 dump_signal(signum, handler, c_addr)
 	int signum;
 	void *handler;
@@ -354,7 +355,11 @@ amp_sensor(int opt)
 	__hdr.sa_flags |= SA_RESTART;	/* SVR4, 44BSD */
 #endif
 	for (i = 0; i < 32; i++)
+#ifdef RTLD_NEXT
 		exec(sigaction, i, &__hdr, &__orig[i]);
+#else
+		__amp_sigaction(i, &__hdr, &__orig[i]);
+#endif
 
 	return;
 }

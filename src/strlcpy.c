@@ -37,7 +37,7 @@ size_t strlcpy(char *, const char *, size_t);
  * will be copied.  Always NUL terminates (unless siz == 0).
  * Returns strlen(src); if retval >= siz, truncation occurred.
  */
-size_t 
+size_t
 strlcpy(dst, src, siz)
 	char *dst;
 	const char *src;

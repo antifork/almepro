@@ -1,9 +1,8 @@
 /* $Id$ */
 /*
- * almepro -- fatal exit
+ * almepro -- __amp_sigaction function
  *
- * Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
- *                    Banchi Leonardo <benkj@antifork.org>
+ * Copyright (c) 2002 Banchi Leonardo <benkj@antifork.org>
  *
  * All rights reserved.
  *
@@ -30,16 +29,10 @@
  *
  */
 
-#include <stdio.h>
-#include <stdarg.h>
+#include <sys/syscall.h>
 
-void fatal(char *pattern,...) __attribute__((noreturn, weak));
-void
-fatal(char *pattern,...)
-{
-	va_list ap;
-	va_start(ap, pattern);
-	vfprintf(stderr, pattern, ap);
-	va_end(ap);
-	exit(1);
-}
+#define SYS___amp_sigaction SYS_sigaction
+
+#include "SYS.h"
+
+RSYSCALL(__amp_sigaction)

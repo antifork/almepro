@@ -3,6 +3,7 @@
  * almepro -- chunk database
  *
  * Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+ * 		      Banchi Leonardo <benkj@antifork.org>
  *
  * All rights reserved.
  *
@@ -37,27 +38,32 @@
 #include <amp.h>
 #include <global.h>
 
-TAILQ_HEAD(, chunk_entry) chunk_head;
-	struct chunk_entry {
-		u_long c_addr;	/* caller addr */
-		u_long f_addr;	/* entry point */
-		u_long type;	/* T_? */
+/* FIXME: indent bug? */
+TAILQ_HEAD(chunk_head_, chunk_entry);
+struct chunk_head_ chunk_head;
 
-		void *b_addr;	/* base pointer */
-		size_t size;	/* size of chunk */
+struct chunk_entry {
+	u_long c_addr;		/* caller addr */
+	u_long f_addr;		/* entry point */
+	u_long type;		/* T_? */
 
-		       TAILQ_ENTRY(chunk_entry) entries;
-	};
+	void *b_addr;		/* base pointer */
+	size_t size;		/* size of chunk */
+	char *src_pos;		/* filename and line */
+
+	     TAILQ_ENTRY(chunk_entry) entries;
+};
 
 
-	static void __add_chunk(u_long, u_long, void *, size_t);
-	static void
-	     __add_chunk(c_addr, type, b_addr, size)
+static void __add_chunk(u_long, u_long, void *, size_t, char *);
+static void
+__add_chunk(c_addr, type, b_addr, size, src_pos)
 	u_long c_addr;		/* caller addr */
 	u_long type;		/* T_? */
 
 	void *b_addr;		/* base pointer */
 	size_t size;		/* size of chunk */
+	char *src_pos;		/* filename and line */
 {
 	struct chunk_entry *new, *np;
 
@@ -68,13 +74,14 @@ TAILQ_HEAD(, chunk_entry) chunk_head;
 	new->type = type;
 	new->b_addr = b_addr;
 	new->size = size;
+	new->src_pos = src_pos;
 
 	/*
          * push the new entry into the sorted queue.
          * we traverse the queue, until the new value is greater than the queue's element.
          */
 
-	for (np = chunk_head.tqh_first; np != NULL && np->b_addr < b_addr; np = np->entries.tqe_next)
+	for (np = TAILQ_FIRST(&chunk_head); np != NULL && np->b_addr < b_addr; np = TAILQ_NEXT(np, entries))
 		continue;
 
 	if (np == NULL) {
@@ -88,23 +95,32 @@ TAILQ_HEAD(, chunk_entry) chunk_head;
 	return;
 }
 
-static int __del_chunk(void *);
+static int __del_chunk(void *, int *, char **);
 static int
-__del_chunk(b_addr)
+__del_chunk(b_addr, fb, src_pos)
 	void *b_addr;
+	int *fb;
+	char **src_pos;
 {
 	struct chunk_entry *np;
-	int fb;
 
+	*src_pos = "";
+	*fb = 0;
+	
 	TAILQ_FOREACH(np, &chunk_head, entries) {
 		if (np->b_addr == b_addr) {
-			fb = np->size;
-			TAILQ_REMOVE(&chunk_head, np, entries);
-			return (fb);
+			*fb = np->size;
+			*src_pos = np->src_pos;
+			/* chunk is already free */
+			if (np->type == T_FREE)
+				return 1;
+			np->type = T_FREE;
+			return (0);
 		}
 	}
 
-	return (-1);
+	/* unallocated space? */
+	return (2);
 }
 
 static char buff[80];
@@ -138,6 +154,7 @@ __mem_rehash(delta, sign)
 	return (buff);
 }
 
+#if 0
 int sizeof_chunk(void *) __attribute__((weak));;
 int
 sizeof_chunk(b_addr)
@@ -155,6 +172,36 @@ sizeof_chunk(b_addr)
 
 	return (-1);
 }
+#endif
+
+static char *mk_line(char *, u_long, char *, char *, u_long, int, char *);
+static char *
+mk_line(src_pos, c_addr, desc, label, b_addr, size, tot)
+	char *src_pos;
+	u_long c_addr;
+	char *desc, *label;
+	u_long b_addr;
+	int size;
+	char *tot;
+{
+	char *buff;
+	size_t len;
+
+	assert((buff = exec(malloc, __global.ws_col * 2 + 1)) != NULL);
+
+	ksnprintf(buff, __global.ws_col - 3, "%s0x%x%s", src_pos, c_addr, desc);
+	len = strlen(buff);
+
+	buff[len++] = ':';
+	MEMSET(buff, ' ', len, __global.ws_col + 2);
+	buff[__global.ws_col + 1] = '`';
+	len = (__global.ws_col * 2) - 50 - PUTS_CHAR;
+	MEMSET(buff, '-', __global.ws_col + 2, len);
+
+	ksnprintf(buff + len, 50 + PUTS_CHAR, " call %s\t[0x%x]\t%d\t%s", label, b_addr, size, tot);
+
+	return buff;
+}
 
 int add_chunk(unsigned long, void *, size_t, int, int) __attribute__((weak));
 int
@@ -166,12 +213,23 @@ add_chunk(c_addr, b_addr, size, nmemb, type)
 	int type;
 {
 	char *symb_addr = NULL;
+	char *src_pos = amp_get_line(c_addr);
+	char *b;
 
 	/* add the chunk to queue */
-	__add_chunk(c_addr, type, b_addr, size * nmemb);
-	PUTS(+, "%p <%s>: call %s\t%p[%d] %s\n", c_addr, get_symb_descr(c_addr), __label[type], b_addr, size * nmemb, __mem_rehash(size * nmemb, 1));
+	__add_chunk(c_addr, type, b_addr, size * nmemb, src_pos);
+	b = mk_line(src_pos, c_addr, (char *)get_symb_descr(c_addr), __label[type], (u_long)b_addr, size * nmemb, __mem_rehash(size * nmemb, 1));
+	PUTS(+, "%s\n", b);
+	exec(free, b);
+	//PUTS(+, "%s%p <%s>: call %s\t%p[%d] %s\n", src_pos, c_addr, get_symb_descr(c_addr), __label[type], b_addr, size * nmemb, __mem_rehash(size * nmemb, 1));
 	return (0);
 }
+
+static const char *chunk_error[3] = {
+	NULL,
+	"chunk is already free",
+	"unallocated space?"
+};
 
 int del_chunk(unsigned long, void *, int) __attribute__((weak));
 int
@@ -180,15 +238,18 @@ del_chunk(c_addr, b_addr, type)
 	void *b_addr;
 	int type;
 {
-	char *symb_addr = NULL;
-	int fb;
+	char *symb_addr = NULL, *src_pos, *b;
+	int fb, err;
 
 	/* remove the chunk from database */
 
-	if ((fb = __del_chunk(b_addr)) == -1 && b_addr != NULL) {
-		PUTS(*, "free(%p): warning, unallocated space?\n", b_addr);
+	if ((err = __del_chunk(b_addr, &fb, &src_pos)) && b_addr != NULL) {
+		PUTS(*, "free(%p): warning, %s\n", b_addr, chunk_error[err]);
 	}
-	PUTS(-, "%p <%s>: call %s\t%p[%d] %s\n", c_addr, get_symb_descr(c_addr), __label[type], b_addr, -fb, __mem_rehash(fb, -1));
+	b = mk_line(src_pos, c_addr, (char *)get_symb_descr(c_addr), __label[type], (u_long)b_addr, -fb, __mem_rehash(fb, -1));
+	PUTS(-, "%s\n", b);
+	exec(free, b);
+	//PUTS(-, "%p <%s>: call %s\t%p[%d] %s\n", c_addr, get_symb_descr(c_addr), __label[type], b_addr, -fb, __mem_rehash(fb, -1));
 	return (0);
 }
 
@@ -197,6 +258,7 @@ void
 dump_chunks()
 {
 	struct chunk_entry *np;
+	char *b;
 
 	if (__options.stripped)
 		return;
@@ -205,6 +267,11 @@ dump_chunks()
 	PUTS(>, "      strdup=%d, asprintf=%d, vasprintf=%d\n", __global.strdup, __global.asprintf, __global.vasprintf);
 	PUTS(>, "      signal=%d, sigaction=%d\n", __global.signal, __global.sigaction);
 	TAILQ_FOREACH(np, &chunk_head, entries) {
-		PUTS(!, "%p <%s>: call %s\t%p[%d]\n", np->c_addr, get_symb_descr(np->c_addr), __label[np->type], np->b_addr, np->size);
+		if (np->type == T_FREE)
+			continue;
+		b = mk_line(np->src_pos, np->c_addr, (char *)get_symb_descr(np->c_addr), __label[np->type], (u_long)np->b_addr, np->size, "");
+		PUTS(!, "%s\n", b);
+		exec(free, b);
+		//PUTS(!, "%p <%s>: call %s\t%p[%d]\n", np->c_addr, get_symb_descr(np->c_addr), __label[np->type], np->b_addr, np->size);
 	}
 }

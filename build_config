@@ -1,0 +1,4 @@
+#! /bin/sh
+
+autoheader2.54 && autoconf2.54 #&& aclocal-1.6 && automake-1.6
+./configure

@@ -1,0 +1,44 @@
+#
+#  almepro -- allocation memory profiler library
+#
+#  Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+#                     Banchi Leonardo <benkj@antifork.org>
+#
+#  All rights reserved.
+
+
+ARCH = @TARGET_CPU@
+SYS = @TARGET_OS@
+
+CC = @CC@
+LD = @LD@
+AS = @AS@
+AR = @AR@
+RANLIB = @RANLIB@
+LN_S = @LN_S@
+CPP = @CPP@
+CFLAGS = @CFLAGS@
+
+OBJS = amp_sigaction.o amp_signal.o
+
+all: libbsd_signal.a
+
+.c.o:
+	$(CC) $(CFLAGS) -o $@ -c $<
+
+SYS.h: arch/$(SYS)_$(ARCH).h
+	$(LN_S) -f arch/$(SYS)_$(ARCH).h $@
+
+amp_sigaction.o: SYS.h amp_sigaction.c
+	$(CPP) amp_sigaction.c | $(AS) -o tmp_obj.o
+	$(LD) -x -r tmp_obj.o -o $@
+	rm -f tmp_obj.o
+
+libbsd_signal.a: $(OBJS)
+	$(AR) -cr $@ $(OBJS)
+	$(RANLIB) $@
+
+clean:
+	-rm -f libbsd_signal.a SYS.h $(OBJS)
+
+distclean: clean

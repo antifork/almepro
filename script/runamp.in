@@ -1,0 +1,129 @@
+#!/bin/sh
+# $Id$
+
+#
+# almepro -- runalmepro script
+#
+# Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+# 		     Banchi Leonardo <benkj@antifork.org>
+#
+# All rights reserved.
+#
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met: 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer. 2.
+# Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR
+# ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+# OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+# SUCH DAMAGE.
+#
+#
+
+PREFIX=@prefix@/lib
+WHICH=@WHICH@
+SETENV=
+
+VERSION=1.0
+LIB=${PREFIX}/libalmepro.so
+
+
+case ${SHELL} in
+*csh)	SETENV=setenv ;;
+*)	SETENV=export ;;
+esac
+
+
+case "$1" in
+--version|-version|-v)
+	echo $VERSION 
+	exit 1 
+	;;
+--help|-help|help|-h|"")
+        echo -e "usage: $0 [options] command [args...]"
+	echo -e " options:"
+	echo -e "   source info:"
+	echo -e "     -N\t\tdon't print source information"
+	echo -e "     -F\t\tprint full-path source filename"
+	echo -e "     -B\t\tprint source filename\t\t\t[default]"
+	echo -e "     -R\t\tprint relative-path source filename"
+	echo -e "   symbols:"
+	echo -e "     -S\t\tprint symbol\t\t\t\t[default]"
+	echo -e "     -s\t\tdon't print symbol"
+	echo -e "   trace:"
+	echo -e "     -A\t\ttrace call only from binary\t\t[default]"
+	echo -e "     -a\t\ttrace all call"
+	echo -e "   misc:"
+	echo -e "     -o file\twrite output to file\t\t\t[default /dev/stderr]"
+	echo -e "     -h\t\tthis help"
+	echo -e "     -v\t\tprint version"
+        exit 1
+	;;
+esac
+
+AMP_OPTIONS="BAS"
+
+add_option() {
+	AMP_OPTIONS="${AMP_OPTIONS}$1"
+}
+
+set -- `getopt FBRNsSaAo: $*`
+if test $? != 0
+then
+	echo 'use: $0 -h to see help'
+	exit 1 
+fi                
+
+for i
+do
+	case "$i" in
+	# options without argument
+	-F)	add_option F ; shift ;;
+	-B)	add_option B ; shift ;;
+	-R)	add_option R ; shift ;;
+	-N)	add_option N ; shift ;;
+	-s)	add_option s ; shift ;;
+	-S)	add_option S ; shift ;;
+	-a)	add_option a ; shift ;;
+	-A)	add_option A ; shift ;;
+
+	# options with argument
+	-o)	
+		add_option o 
+		$SETENV __AMP_OUTFILE="$2"
+		shift; shift
+		;;
+
+	--)	shift; break ;;
+	esac
+done
+
+if test -x "$1"; then 
+	PROG="$1"
+	$SETENV __AMP_TARGET=`echo $1 | sed "sø^\([^/]\)ø${PWD}/\1ø"`
+else
+	PROG=`${WHICH} $1`
+	if ! test -x "${PROG}" ; then
+		echo "$1: file not found"
+		exit 1
+	fi
+	$SETENV __AMP_TARGET="${PROG}"
+fi
+shift
+$SETENV __AMP_OPTIONS="${AMP_OPTIONS}"
+
+env LD_PRELOAD="$LIB" $PROG $@
+
+exit 0
