@@ -34,16 +34,11 @@
 
 PREFIX=../src/
 WHICH=which
-SETENV=
+SETENV=export
 
 VERSION=1.0
 LIB=${PREFIX}/libalmepro.so
 
-
-case ${SHELL} in
-*csh)	SETENV=setenv ;;
-*)	SETENV=export ;;
-esac
 
 SCRIPTNAME="$0"
 

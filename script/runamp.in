@@ -34,25 +34,21 @@
 
 PREFIX=@prefix@/lib
 WHICH=@WHICH@
-SETENV=
+SETENV=export
 
 VERSION=1.0
 LIB=${PREFIX}/libalmepro.so
 
 
-case ${SHELL} in
-*csh)	SETENV=setenv ;;
-*)	SETENV=export ;;
-esac
-
+SCRIPTNAME="$0"
 
 case "$1" in
 --version|-version|-v)
 	echo $VERSION 
 	exit 1 
 	;;
---help|-help|help|-h|"")
-        echo -e "usage: $0 [options] command [args...]"
+--help|-help|help|-h)
+        echo -e "usage: $SCRIPTNAME [options] command [args...]"
 	echo -e " options:"
 	echo -e "   source info:"
 	echo -e "     -N\t\tdon't print source information"
@@ -71,18 +67,29 @@ case "$1" in
 	echo -e "     -v\t\tprint version"
         exit 1
 	;;
+"")
+	echo "use: $SCRIPTNAME -h to see help"
+	exit 1
+	;;
 esac
 
+# reset env 
+$SETENV __AMP_OPTIONS=
+$SETENV __AMP_OUTFILE=
+$SETENV __AMP_TARGET=
+
+# default options
 AMP_OPTIONS="BAS"
 
 add_option() {
 	AMP_OPTIONS="${AMP_OPTIONS}$1"
 }
 
+# parse options
 set -- `getopt FBRNsSaAo: $*`
 if test $? != 0
 then
-	echo 'use: $0 -h to see help'
+	echo "use: $SCRIPTNAME -h to see help"
 	exit 1 
 fi                
 
@@ -109,12 +116,14 @@ do
 	--)	shift; break ;;
 	esac
 done
+$SETENV __AMP_OPTIONS="${AMP_OPTIONS}"
 
+# check progname 
 if test -x "$1"; then 
 	PROG="$1"
-	$SETENV __AMP_TARGET=`echo $1 | sed "sø^\([^/]\)ø${PWD}/\1ø"`
+	$SETENV __AMP_TARGET="`echo $1 | sed \"sø^\([^/]\)ø${PWD}/\1ø\"`"
 else
-	PROG=`${WHICH} $1`
+	PROG="`${WHICH} $1`"
 	if ! test -x "${PROG}" ; then
 		echo "$1: file not found"
 		exit 1
@@ -122,8 +131,15 @@ else
 	$SETENV __AMP_TARGET="${PROG}"
 fi
 shift
-$SETENV __AMP_OPTIONS="${AMP_OPTIONS}"
 
+#
+# run program
+#
 env LD_PRELOAD="$LIB" $PROG $@
+
+# reset env 
+$SETENV __AMP_OPTIONS=
+$SETENV __AMP_OUTFILE=
+$SETENV __AMP_TARGET=
 
 exit 0
