@@ -74,12 +74,15 @@
 #elif defined(linux)
 #define _DLMODE         RTLD_NOW | RTLD_GLOBAL
 #define _DLSYMPREFIX    ""
+#elif defined(__NetBSD__)
+#define _DLMODE         RTLD_NOW
+#define _DLSYMPREFIX    ""
 #elif
 #error "unsupported system"
 #endif
 
 /*
- *  macros 
+ *  Macro 
  */
 
 #define DL_ISLOCKED(x)      ( __sem.x > 1)
@@ -87,8 +90,7 @@
 #define DL_UNLOCK(x)     do { __sem.x--; } while (0)
 
 #define exec(x,...)  ({                                                 \
-if ( __libc_so.x == NULL)                                               \
-        fatal("err: __libc_so.%s is %p\n",#x,__libc_so.x);              \
+	assert (__libc_so.x != NULL);					\
         __libc_so.x(__VA_ARGS__);                                       \
 })
 
@@ -100,10 +102,6 @@ assert(dl_offs < _DLBUF_SIZE);						\
 ret;									\
 })
 
-/*
- * DL_OPEN directive
- */
-			                                            
 #if !defined (RTLD_NEXT)
 #define DL_OPEN(x)	do {						\
 	if (__handler == 0)						\
@@ -113,10 +111,6 @@ ret;									\
 /* dlopen is not required */
 #define DL_OPEN(x)	do { } while (0)
 #endif /* DL_OPEN */
-
-/*
- * DL_SYM and DL_SYSV directive
- */
 
 #if defined (RTLD_NEXT)
 /* #1 : using RTLD_NEXT handler if supported (without dlopen)*/ 
