@@ -1,0 +1,30 @@
+#
+#  almepro -- allocation memory profiler library
+#
+#  Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+#                     Banchi Leonardo <benkj@antifork.org>
+#
+#  All rights reserved.
+
+CC	= @CC@
+CFLAGS	= @CFLAGS@
+LD	= @CC@
+LDFLAGS	= 
+LIBS	= 
+OBJS	= module1.o module2.o 
+
+all: example
+
+.c.o:
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+example: $(OBJS)
+	$(CC) -o $@ $(LDFLAGS) $(OBJS) $(LIBS)
+
+clean:
+	-rm -f example $(OBJS)
+
+distclean : clean
+
+install:
+uninstall:
