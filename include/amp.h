@@ -131,7 +131,7 @@ sig_t __amp_signal(int, sig_t);
 
 #define exec(x, arg...)  ({						\
 	assert(exist(x));						\
-        __libc_so.x(##arg);						\
+        __libc_so.x(arg);						\
 })
 
 #define DL_ALLOC(x) ({							\

@@ -132,6 +132,7 @@ parse_options()
 			__options.outfile = getenv("__AMP_OUTFILE");
 			break;
 		default: 
+			break;
 		}
 }
 

@@ -71,7 +71,7 @@ amp_symbols_init()
 	 * check format
 	 */
 
-	if (bfd_check_format(abfd, bfd_object) == false) {
+	if (bfd_check_format(abfd, bfd_object) == 0) {
 		PUTS(*, "bfd: bfd_check_format() == false (error)\n");
 		return (-1);
 	}
@@ -202,6 +202,7 @@ get_file_name(s)
 		strlcat(buff, s, 128);
 		return buff;
 	default :
+		break;
 	}
 	
 	return "";

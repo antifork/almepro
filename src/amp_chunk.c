@@ -198,7 +198,7 @@ mk_line(src_pos, c_addr, desc, label, b_addr, size, tot)
 	len = (__global.ws_col * 2) - 50 - PUTS_CHAR;
 	MEMSET(buff, '-', __global.ws_col + 2, len);
 
-	ksnprintf(buff + len, 50 + PUTS_CHAR, " call %s\t[0x%x]\t%d\t%s", label, b_addr, size, tot);
+	ksnprintf(buff + len, 50 + PUTS_CHAR, " call %s [0x%x] %d[%s]", label, b_addr, size, tot);
 
 	return buff;
 }
@@ -221,7 +221,6 @@ add_chunk(c_addr, b_addr, size, nmemb, type)
 	b = mk_line(src_pos, c_addr, (char *)get_symb_descr(c_addr), __label[type], (u_long)b_addr, size * nmemb, __mem_rehash(size * nmemb, 1));
 	PUTS(+, "%s\n", b);
 	exec(free, b);
-	//PUTS(+, "%s%p <%s>: call %s\t%p[%d] %s\n", src_pos, c_addr, get_symb_descr(c_addr), __label[type], b_addr, size * nmemb, __mem_rehash(size * nmemb, 1));
 	return (0);
 }
 
@@ -249,7 +248,6 @@ del_chunk(c_addr, b_addr, type)
 	b = mk_line(src_pos, c_addr, (char *)get_symb_descr(c_addr), __label[type], (u_long)b_addr, -fb, __mem_rehash(fb, -1));
 	PUTS(-, "%s\n", b);
 	exec(free, b);
-	//PUTS(-, "%p <%s>: call %s\t%p[%d] %s\n", c_addr, get_symb_descr(c_addr), __label[type], b_addr, -fb, __mem_rehash(fb, -1));
 	return (0);
 }
 
@@ -272,6 +270,5 @@ dump_chunks()
 		b = mk_line(np->src_pos, np->c_addr, (char *)get_symb_descr(np->c_addr), __label[np->type], (u_long)np->b_addr, np->size, "");
 		PUTS(!, "%s\n", b);
 		exec(free, b);
-		//PUTS(!, "%p <%s>: call %s\t%p[%d]\n", np->c_addr, get_symb_descr(np->c_addr), __label[np->type], np->b_addr, np->size);
 	}
 }

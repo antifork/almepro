@@ -80,6 +80,8 @@ ksputchar(c)
 	return c;
 }
 
+void 
+ksprintf(char *, const char *,...) __attribute__((weak));
 void
 ksprintf(char *buf, const char *fmt,...)
 {
@@ -93,6 +95,8 @@ ksprintf(char *buf, const char *fmt,...)
 }
 
 void
+kprintf(const char *,...) __attribute__((weak));
+void
 kprintf(const char *fmt,...)
 {
 	va_list ap;
@@ -102,6 +106,8 @@ kprintf(const char *fmt,...)
 	va_end(ap);
 }
 
+void
+kvprintf(const char *, va_list ) __attribute__((weak));
 void
 kvprintf(const char *fmt, va_list ap)
 {
@@ -281,6 +287,8 @@ ksnputchar(c)
 }
 
 void
+kfprintf(FILE *fd, const char *,...) __attribute__((weak));
+void
 kfprintf(FILE *fd, const char *fmt,...)
 {
 	va_list ap;
@@ -291,6 +299,8 @@ kfprintf(FILE *fd, const char *fmt,...)
 	va_end(ap);
 }
 
+void
+ksnprintf(char *, size_t , const char *,...) __attribute__((weak));
 void
 ksnprintf(char *buf, size_t size, const char *fmt,...)
 {
