@@ -1,7 +1,7 @@
 #!/bin/sh
 
 VERSION=1.0
-LIB=../src/libalmepro.so
+LIB=/usr/local/lib/libalmepro.so
 
 version ()
         {
