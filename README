@@ -1,0 +1,8 @@
+   AL   allocation
+   ME  memory
+  PRO profiler
+   |
+    \
+     `-> almepro library
+
+cvs -d :pserver:anoncvs@cvs.antifork.org:/CVS checkout almepro

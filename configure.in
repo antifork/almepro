@@ -1,0 +1,69 @@
+dnl
+dnl  almepro -- allocation memory profiler library
+dnl 
+dnl  Copyright (c) 2002 Bonelli Nicola <bonelli@blackhats.it>
+dnl 
+dnl  All rights reserved.
+dnl
+
+dnl Process this file with autoconf to produce a configure script.
+
+AC_INIT([almepro],[1.x],[bonelli@blackhats.it])
+AC_CONFIG_SRCDIR([include/amp.h])
+
+
+dnl Automake
+ver=`cat ./VERSION`
+AM_INIT_AUTOMAKE([almepro],$ver)
+AM_CONFIG_HEADER(include/config.h)
+
+dnl Checks for programs.
+AC_PROG_AWK
+AC_PROG_CC
+AC_PROG_INSTALL
+AC_PROG_MAKE_SET
+AC_PROG_LN_S
+AC_PROG_RANLIB
+AC_PROG_LIBTOOL
+
+dnl Checks for header files.
+AC_HEADER_STDC
+AC_CHECK_HEADERS(sys/ioctl.h unistd.h)
+AC_CHECK_HEADERS([bfd.h],, [AC_MSG_ERROR([almepro needs bfd-library from gnu binutils])])
+
+AH_TEMPLATE([HAVE_BSD_SYS_QUEUE_H],
+[define if the sys/queue.h BSD header is present ])
+AC_CHECK_HEADERS(sys/queue.h, [AC_EGREP_CPP(have_bsd_sys_queue, [
+#include <sys/queue.h>
+#ifdef SLIST_HEAD
+  have_bsd_sys_queue
+#endif
+], AC_DEFINE([HAVE_BSD_SYS_QUEUE_H]))])
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_TYPE_SIZE_T
+
+dnl Checks for libraries.
+AC_CHECK_LIB([dl], [dlopen])
+AC_CHECK_LIB([bfd], [bfd_init])
+AC_CHECK_LIB([iberty], [cplus_demangle])
+AC_CHECK_LIB([intl], [gettext])
+
+dnl Checks for library functions.
+AC_TYPE_SIGNAL
+AC_FUNC_VPRINTF
+AC_CHECK_FUNCS(strdup strerror strstr asprintf vasprintf __libc_malloc __progname )
+AC_REPLACE_FUNCS(strlcpy strlcat)
+
+AC_CONFIG_FILES([Makefile src/Makefile include/Makefile include/missing/Makefile include/missing/sys/Makefile])
+
+# This is necessary so that .o files in LIBOBJS are also built via
+# the ANSI2KNR-filtering rules.
+LIB@&t@OBJS=`echo "$LIB@&t@OBJS" |
+             sed 's,\.[[^.]]* ,$U&,g;s,\.[[^.]]*$,$U&,'`
+LTLIBOBJS=`echo "$LIB@&t@OBJS" |
+           sed 's,\.[[^.]]* ,.lo ,g;s,\.[[^.]]*$,.lo,'`
+AC_SUBST(LTLIBOBJS)
+
+AC_OUTPUT

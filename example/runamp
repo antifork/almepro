@@ -1,0 +1,33 @@
+#!/bin/sh
+
+VERSION=1.0
+LIB=../src/libalmepro.so
+
+version ()
+        {
+        echo $VERSION 
+        exit 1 
+}
+
+usage () {
+        echo "usage:$0 [-v --version] { ELF-binary | AOUT-binary }"
+        exit 1
+}
+
+case "$1" in
+        --version|-v)
+        version
+        ;;
+        --help|help|-h|"")
+        usage
+        ;;      
+        *)
+        if [ -x $1 ]
+                then
+                env LD_PRELOAD="$LIB" $@
+                else
+                error
+                fi
+        ;;
+esac
+exit
