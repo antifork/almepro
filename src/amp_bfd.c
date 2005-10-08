@@ -36,6 +36,7 @@
 #include <unistd.h>
 #include <amp.h>
 #include <global.h>
+#include <string.h>
 
 static asymbol **symbol_table;
 static bfd *abfd;
@@ -208,6 +209,7 @@ get_file_name(s)
 	return "";
 }
 
+
 char *amp_get_line(u_long) __attribute__((weak));
 char *
 amp_get_line(addr)
@@ -232,11 +234,15 @@ amp_get_line(addr)
 			continue;
 	
 		vma = bfd_get_section_vma(abfd, sec);
+#if 0
 		size = bfd_get_section_size_before_reloc(sec);
 
 		if (faddr < vma || (size_t)(faddr - vma) >= size)
 			continue;
-
+#else
+		if (faddr < vma || (size_t)(faddr - vma) >= sec->rawsize )
+			continue;
+#endif
 		faddr -= vma;
 
 		/* translate address into file_name:line_number */

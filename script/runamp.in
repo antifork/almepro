@@ -48,7 +48,7 @@ case "$1" in
 	exit 1 
 	;;
 --help|-help|help|-h)
-        echo -e "usage: $SCRIPTNAME [options] command [args...]"
+        echo -e "usage: $SCRIPTNAME [options] -- command [args...]"
 	echo -e " options:"
 	echo -e "   source info:"
 	echo -e "     -N\t\tdon't print source information"

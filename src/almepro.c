@@ -342,7 +342,6 @@ strdup(p)
 	void *add;
 	char *res;
 
-
         if (DL_ISLOCKED(strdup))
 		return NULL; 	/* debug purpose only */
 

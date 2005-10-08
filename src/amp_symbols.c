@@ -119,7 +119,7 @@ get_symb_descr(addr)
 		continue;
 
 	if ((np == NULL) || (TAILQ_NEXT(np, entries) == NULL))
-		return (" <__??>");/* XXX: debug */
+		return (" <__\?\?>");/* XXX: debug */
 
 
 	strlcpy(buffer, " <", sizeof(buffer));
